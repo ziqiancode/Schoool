@@ -1402,14 +1402,60 @@ function resetAppearance() {
 }
 async function changePassword(event) {
   event.preventDefault();
-  const p1 = $("newPassword").value, p2 = $("confirmPassword").value;
-  if (p1 !== p2) return setStatus("passwordStatus", "Passwords do not match.", "error");
-  if (p1.length < 6) return setStatus("passwordStatus", "Password must be at least 6 characters.", "error");
-  setStatus("passwordStatus", "Updating…");
-  const { error } = await supabase.auth.updateUser({ password: p1 });
-  if (error) return setStatus("passwordStatus", error.message, "error");
-  $("newPassword").value = $("confirmPassword").value = "";
-  setStatus("passwordStatus", "Password changed.", "success");
+
+  const currentPassword = $("currentPassword").value;
+  const newPassword = $("newPassword").value;
+  const confirmPassword = $("confirmPassword").value;
+  const button = $("changePasswordBtn");
+
+  if (!me || !profile) {
+    return setStatus("passwordStatus", "You must be logged in to change your password.", "error");
+  }
+
+  if (newPassword !== confirmPassword) {
+    return setStatus("passwordStatus", "New passwords do not match.", "error");
+  }
+
+  if (newPassword.length < 6) {
+    return setStatus("passwordStatus", "New password must be at least 6 characters.", "error");
+  }
+
+  if (currentPassword === newPassword) {
+    return setStatus("passwordStatus", "Your new password must be different from your current password.", "error");
+  }
+
+  button.disabled = true;
+  setStatus("passwordStatus", "Checking current password…");
+
+  try {
+    // Re-authenticate with the account's synthetic Supabase email.
+    // This proves the person at the keyboard knows the current password.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: fakeEmail(profile.username),
+      password: currentPassword
+    });
+
+    if (verifyError) {
+      return setStatus("passwordStatus", "Current password is incorrect.", "error");
+    }
+
+    setStatus("passwordStatus", "Current password confirmed. Updating…");
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (updateError) {
+      return setStatus("passwordStatus", updateError.message || "Could not change password.", "error");
+    }
+
+    $("currentPassword").value = "";
+    $("newPassword").value = "";
+    $("confirmPassword").value = "";
+    setStatus("passwordStatus", "Password changed successfully.", "success");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 /* EVENTS */
