@@ -335,6 +335,17 @@
         <section class="panel admin-message-panel">
           <div class="panel-heading">
             <div>
+              <span class="eyebrow">Punishments</span>
+              <h3>Active mutes & bans</h3>
+            </div>
+            <button id="refreshPunishmentsBtn" class="secondary-btn" type="button">Refresh</button>
+          </div>
+          <div id="adminPunishmentsList" class="admin-scroll-list"></div>
+        </section>
+
+        <section class="panel admin-message-panel">
+          <div class="panel-heading">
+            <div>
               <span class="eyebrow">Moderation</span>
               <h3>Recent global messages</h3>
             </div>
@@ -461,6 +472,56 @@
         <button class="primary-btn" type="submit">Send invite</button>
       </div>
       <p id="inviteGroupStatus" class="form-status"></p>
+    </form>
+  </dialog>
+
+
+  <dialog id="moderationDialog">
+    <form id="moderationForm" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <span class="eyebrow">Admin action</span>
+          <h3>Moderate <span id="moderationUsername">@user</span></h3>
+        </div>
+        <button class="icon-btn moderation-close" type="button">×</button>
+      </div>
+
+      <input id="moderationUserId" type="hidden">
+
+      <div class="field">
+        <label for="moderationAction">Action</label>
+        <select id="moderationAction">
+          <option value="mute">Mute</option>
+          <option value="ban">Ban</option>
+          <option value="clear_mute">Unmute</option>
+          <option value="clear_ban">Unban</option>
+          <option value="clear_all">Clear all punishments</option>
+        </select>
+      </div>
+
+      <div id="moderationDurationWrap" class="field">
+        <label for="moderationDuration">Duration</label>
+        <select id="moderationDuration">
+          <option value="10">10 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="360">6 hours</option>
+          <option value="1440">1 day</option>
+          <option value="10080">7 days</option>
+          <option value="43200">30 days</option>
+          <option value="0">Permanent</option>
+        </select>
+      </div>
+
+      <div id="moderationReasonWrap" class="field">
+        <label for="moderationReason">Reason</label>
+        <input id="moderationReason" maxlength="300" placeholder="e.g. spamming global chat">
+      </div>
+
+      <div class="dialog-actions">
+        <button class="secondary-btn moderation-close" type="button">Cancel</button>
+        <button id="moderationSubmitBtn" class="primary-btn" type="submit">Apply</button>
+      </div>
+      <p id="moderationStatus" class="form-status"></p>
     </form>
   </dialog>
 
