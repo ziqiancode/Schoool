@@ -420,7 +420,16 @@
           </form>
 
           <form id="passwordForm" class="panel settings-card">
-            <div class="panel-heading"><h3>Password</h3></div>
+            <div class="panel-heading">
+              <div>
+                <h3>Password</h3>
+                <p class="muted-note">Your current password is required before Schoool will accept a new one.</p>
+              </div>
+            </div>
+            <div class="field">
+              <label for="currentPassword">Current password</label>
+              <input id="currentPassword" type="password" minlength="6" autocomplete="current-password" required>
+            </div>
             <div class="field">
               <label for="newPassword">New password</label>
               <input id="newPassword" type="password" minlength="6" autocomplete="new-password" required>
@@ -429,7 +438,7 @@
               <label for="confirmPassword">Confirm new password</label>
               <input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" required>
             </div>
-            <button class="primary-btn" type="submit">Change password</button>
+            <button id="changePasswordBtn" class="primary-btn" type="submit">Change password</button>
             <p id="passwordStatus" class="form-status"></p>
           </form>
 
