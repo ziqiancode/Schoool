@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Schoool — a school social dashboard">
+  <meta name="theme-color" content="#5b5ce2">
+  <title>Schoool</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="setupBanner" class="setup-banner hidden">
+    <strong>Setup required:</strong>
+    <span id="setupMessage">Add your Supabase URL and anon key in config.js.</span>
+  </div>
+
+  <main id="authScreen" class="auth-shell">
+    <section class="brand-panel">
+      <div class="logo-mark">S</div>
+      <h1>Schoool</h1>
+      <p class="brand-tagline">Three O's. One place for your school friends.</p>
+      <div class="feature-chips">
+        <span>Global Chat</span>
+        <span>Friends + DMs</span>
+        <span>Friend Groups</span>
+        <span>Custom Themes</span>
+      </div>
+      <div class="brand-note">
+        <strong>CAPTCHA:</strong> Schoool uses a simple homemade challenge on account creation.
+      </div>
+    </section>
+
+    <section class="auth-card">
+      <div class="auth-switch" role="tablist">
+        <button id="showLoginBtn" class="auth-switch-btn active" type="button">Log in</button>
+        <button id="showSignupBtn" class="auth-switch-btn" type="button">Create account</button>
+      </div>
+
+      <form id="loginForm" class="auth-form">
+        <div class="field">
+          <label for="loginUsername">Username</label>
+          <input id="loginUsername" autocomplete="username" maxlength="24" required placeholder="your_username">
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••">
+        </div>
+        <button class="primary-btn full-btn" type="submit">Log in</button>
+        <p id="loginStatus" class="form-status" aria-live="polite"></p>
+      </form>
+
+      <form id="signupForm" class="auth-form hidden">
+        <div class="field">
+          <label for="signupUsername">Username</label>
+          <input id="signupUsername" autocomplete="username" maxlength="24" required placeholder="3–24 letters, numbers, or _">
+        </div>
+        <div class="field">
+          <label for="signupPassword">Password</label>
+          <input id="signupPassword" type="password" autocomplete="new-password" minlength="6" required placeholder="At least 6 characters">
+        </div>
+
+        <div class="captcha-card">
+          <div>
+            <span class="eyebrow">Human check</span>
+            <strong id="captchaQuestion">Loading challenge…</strong>
+          </div>
+          <button id="newCaptchaBtn" class="icon-btn" type="button" title="New CAPTCHA">↻</button>
+        </div>
+
+        <div class="field">
+          <label for="captchaAnswer">CAPTCHA answer</label>
+          <input id="captchaAnswer" inputmode="numeric" autocomplete="off" required placeholder="Answer">
+        </div>
+
+        <button class="primary-btn full-btn" type="submit">Create account</button>
+        <p id="signupStatus" class="form-status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <main id="appScreen" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="mini-logo">S</div>
+        <div>
+          <strong>Schoool</strong>
+          <span id="sidebarUsername">@username</span>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" aria-label="Schoool sections">
+        <button class="nav-btn active" data-tab="home" type="button"><span>⌂</span>Home</button>
+        <button class="nav-btn" data-tab="global" type="button"><span>◎</span>Global Chat</button>
+        <button class="nav-btn" data-tab="friends" type="button"><span>♙</span>Friends <b id="friendRequestBadge" class="badge hidden">0</b></button>
+        <button class="nav-btn" data-tab="dms" type="button"><span>✉</span>DMs</button>
+        <button class="nav-btn" data-tab="groups" type="button"><span>♧</span>Friend Groups <b id="groupInviteBadge" class="badge hidden">0</b></button>
+        <button class="nav-btn" data-tab="settings" type="button"><span>⚙</span>Settings</button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button id="logoutBtn" class="secondary-btn full-btn" type="button">Log out</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="mobile-header">
+        <button id="mobileMenuBtn" class="icon-btn" type="button">☰</button>
+        <strong>Schoool</strong>
+        <span id="mobileUsername">@username</span>
+      </header>
+
+      <section id="tab-home" class="tab-panel active">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">Dashboard</span>
+            <h2 id="welcomeHeading">Welcome to Schoool</h2>
+            <p>Everything social, in one place.</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <button class="dash-card" type="button" data-jump="global">
+            <span class="dash-icon">◎</span>
+            <div><strong>Global Chat</strong><small>Talk with everyone on Schoool.</small></div>
+          </button>
+          <button class="dash-card" type="button" data-jump="friends">
+            <span class="dash-icon">♙</span>
+            <div><strong>Friends</strong><small>Add friends and manage requests.</small></div>
+          </button>
+          <button class="dash-card" type="button" data-jump="dms">
+            <span class="dash-icon">✉</span>
+            <div><strong>Direct Messages</strong><small>Private chats with your friends.</small></div>
+          </button>
+          <button class="dash-card" type="button" data-jump="groups">
+            <span class="dash-icon">♧</span>
+            <div><strong>Friend Groups</strong><small>Create groups and invite people.</small></div>
+          </button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-heading">
+            <div><span class="eyebrow">Quick stats</span><h3>Your Schoool</h3></div>
+            <button id="refreshHomeBtn" class="secondary-btn" type="button">Refresh</button>
+          </div>
+          <div class="stats-row">
+            <div class="stat"><strong id="friendCount">0</strong><span>Friends</span></div>
+            <div class="stat"><strong id="groupCount">0</strong><span>Groups</span></div>
+            <div class="stat"><strong id="pendingCount">0</strong><span>Pending invites</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-global" class="tab-panel">
+        <div class="page-heading">
+          <div><span class="eyebrow">Everyone</span><h2>Global Chat</h2><p>Messages here are visible to every logged-in Schoool user.</p></div>
+        </div>
+        <div class="chat-shell">
+          <div id="globalMessages" class="message-list" aria-live="polite"></div>
+          <form id="globalMessageForm" class="message-form">
+            <input id="globalMessageInput" maxlength="2000" autocomplete="off" placeholder="Message everyone…">
+            <button class="primary-btn" type="submit">Send</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="tab-friends" class="tab-panel">
+        <div class="page-heading">
+          <div><span class="eyebrow">Connections</span><h2>Friends</h2><p>Search usernames, send requests, and manage your friend list.</p></div>
+        </div>
+
+        <div class="two-col">
+          <div class="panel">
+            <div class="panel-heading"><h3>Add a friend</h3></div>
+            <form id="friendSearchForm" class="inline-form">
+              <input id="friendSearchInput" maxlength="24" placeholder="Exact username">
+              <button class="primary-btn" type="submit">Send request</button>
+            </form>
+            <p id="friendSearchStatus" class="form-status"></p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-heading"><h3>Friend requests</h3><button id="refreshRequestsBtn" class="secondary-btn" type="button">Refresh</button></div>
+            <div id="friendRequestsList" class="stack-list"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-heading"><h3>Your friends</h3><button id="refreshFriendsBtn" class="secondary-btn" type="button">Refresh</button></div>
+          <div id="friendsList" class="people-grid"></div>
+        </div>
+      </section>
+
+      <section id="tab-dms" class="tab-panel">
+        <div class="page-heading">
+          <div><span class="eyebrow">Private</span><h2>Direct Messages</h2><p>Select a friend to start chatting.</p></div>
+        </div>
+        <div class="split-chat">
+          <aside class="chat-list-panel">
+            <h3>Friends</h3>
+            <div id="dmFriendsList" class="stack-list"></div>
+          </aside>
+          <section class="chat-main">
+            <div id="dmEmptyState" class="empty-state">
+              <div class="empty-icon">✉</div>
+              <strong>Pick a friend</strong>
+              <span>Your private messages will appear here.</span>
+            </div>
+            <div id="dmChatArea" class="chat-shell hidden">
+              <div class="chat-titlebar">
+                <div class="avatar" id="dmAvatar">?</div>
+                <div><strong id="dmTitle">Friend</strong><span>Private message</span></div>
+              </div>
+              <div id="dmMessages" class="message-list"></div>
+              <form id="dmMessageForm" class="message-form">
+                <input id="dmMessageInput" maxlength="2000" autocomplete="off" placeholder="Send a private message…">
+                <button class="primary-btn" type="submit">Send</button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tab-groups" class="tab-panel">
+        <div class="page-heading">
+          <div><span class="eyebrow">Your circles</span><h2>Friend Groups</h2><p>Create a group, invite Schoool users, and chat together.</p></div>
+          <button id="openCreateGroupBtn" class="primary-btn" type="button">+ New group</button>
+        </div>
+
+        <div class="panel">
+          <div class="panel-heading"><h3>Group invitations</h3><button id="refreshGroupInvitesBtn" class="secondary-btn" type="button">Refresh</button></div>
+          <div id="groupInvitesList" class="stack-list"></div>
+        </div>
+
+        <div class="split-chat groups-layout">
+          <aside class="chat-list-panel">
+            <div class="panel-heading compact"><h3>Your groups</h3><button id="refreshGroupsBtn" class="icon-btn" type="button">↻</button></div>
+            <div id="groupsList" class="stack-list"></div>
+          </aside>
+
+          <section class="chat-main">
+            <div id="groupEmptyState" class="empty-state">
+              <div class="empty-icon">♧</div>
+              <strong>Select a group</strong>
+              <span>Group chat and members will show here.</span>
+            </div>
+
+            <div id="groupArea" class="group-area hidden">
+              <div class="group-header">
+                <div>
+                  <span class="eyebrow">Friend Group</span>
+                  <h3 id="groupTitle">Group</h3>
+                </div>
+                <button id="openInviteGroupBtn" class="secondary-btn" type="button">Invite user</button>
+              </div>
+
+              <div class="group-grid">
+                <section class="chat-shell">
+                  <div id="groupMessages" class="message-list"></div>
+                  <form id="groupMessageForm" class="message-form">
+                    <input id="groupMessageInput" maxlength="2000" autocomplete="off" placeholder="Message the group…">
+                    <button class="primary-btn" type="submit">Send</button>
+                  </form>
+                </section>
+                <aside class="members-panel">
+                  <h4>Members</h4>
+                  <div id="groupMembersList" class="stack-list"></div>
+                </aside>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tab-settings" class="tab-panel">
+        <div class="page-heading">
+          <div><span class="eyebrow">Personalize</span><h2>Settings</h2><p>Change how Schoool looks for your account.</p></div>
+        </div>
+
+        <div class="settings-grid">
+          <form id="appearanceForm" class="panel settings-card">
+            <div class="panel-heading"><h3>Appearance</h3></div>
+            <div class="field">
+              <label for="themeSelect">Theme</label>
+              <select id="themeSelect">
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="backgroundSelect">Background</label>
+              <select id="backgroundSelect">
+                <option value="soft">Soft</option>
+                <option value="plain">Plain</option>
+                <option value="gradient">Gradient</option>
+                <option value="grid">Grid</option>
+                <option value="midnight">Midnight</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fontFamilySelect">Font</label>
+              <select id="fontFamilySelect">
+                <option value="system">System</option>
+                <option value="rounded">Rounded</option>
+                <option value="serif">Serif</option>
+                <option value="mono">Monospace</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="fontSizeRange">Font size <span id="fontSizeLabel">16px</span></label>
+              <input id="fontSizeRange" type="range" min="13" max="22" step="1" value="16">
+            </div>
+            <div class="color-row">
+              <div class="field">
+                <label for="fontColorInput">Font color</label>
+                <input id="fontColorInput" type="color" value="#1f2937">
+              </div>
+              <div class="field">
+                <label for="accentColorInput">Accent</label>
+                <input id="accentColorInput" type="color" value="#5b5ce2">
+              </div>
+            </div>
+            <div class="row-actions">
+              <button id="resetAppearanceBtn" class="secondary-btn" type="button">Reset</button>
+              <button class="primary-btn" type="submit">Save appearance</button>
+            </div>
+            <p id="appearanceStatus" class="form-status"></p>
+          </form>
+
+          <form id="passwordForm" class="panel settings-card">
+            <div class="panel-heading"><h3>Password</h3></div>
+            <div class="field">
+              <label for="newPassword">New password</label>
+              <input id="newPassword" type="password" minlength="6" autocomplete="new-password" required>
+            </div>
+            <div class="field">
+              <label for="confirmPassword">Confirm new password</label>
+              <input id="confirmPassword" type="password" minlength="6" autocomplete="new-password" required>
+            </div>
+            <button class="primary-btn" type="submit">Change password</button>
+            <p id="passwordStatus" class="form-status"></p>
+          </form>
+
+          <div class="panel settings-card">
+            <div class="panel-heading"><h3>Account</h3></div>
+            <div class="account-line"><span>Username</span><strong id="settingsUsername">@username</strong></div>
+            <div class="account-line"><span>Account ID</span><code id="settingsUserId">—</code></div>
+            <p class="muted-note">Usernames are fixed in v1 so friend links don't break.</p>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="createGroupDialog">
+    <form id="createGroupForm" class="dialog-card">
+      <div class="dialog-heading"><h3>Create friend group</h3><button class="icon-btn dialog-close" type="button">×</button></div>
+      <div class="field">
+        <label for="newGroupName">Group name</label>
+        <input id="newGroupName" maxlength="60" required placeholder="e.g. Math Crew">
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-btn dialog-close" type="button">Cancel</button>
+        <button class="primary-btn" type="submit">Create</button>
+      </div>
+      <p id="createGroupStatus" class="form-status"></p>
+    </form>
+  </dialog>
+
+  <dialog id="inviteGroupDialog">
+    <form id="inviteGroupForm" class="dialog-card">
+      <div class="dialog-heading"><h3>Invite to group</h3><button class="icon-btn dialog-close" type="button">×</button></div>
+      <p id="inviteGroupName" class="muted-note">Group</p>
+      <div class="field">
+        <label for="inviteUsername">Username</label>
+        <input id="inviteUsername" maxlength="24" required placeholder="friend_username">
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-btn dialog-close" type="button">Cancel</button>
+        <button class="primary-btn" type="submit">Send invite</button>
+      </div>
+      <p id="inviteGroupStatus" class="form-status"></p>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./config.js"></script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
