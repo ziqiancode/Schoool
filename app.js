@@ -1,11 +1,12 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 const CONFIG = window.SCHOOOL_CONFIG || {};
+const PUBLIC_KEY = CONFIG.SUPABASE_PUBLISHABLE_KEY || CONFIG.SUPABASE_ANON_KEY || "";
 const configured =
   CONFIG.SUPABASE_URL &&
-  CONFIG.SUPABASE_ANON_KEY &&
+  PUBLIC_KEY &&
   !CONFIG.SUPABASE_URL.includes("PASTE_") &&
-  !CONFIG.SUPABASE_ANON_KEY.includes("PASTE_");
+  !PUBLIC_KEY.includes("PASTE_");
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -22,6 +23,7 @@ let selectedDmFriend = null;
 let groups = [];
 let selectedGroup = null;
 let realtimeChannels = [];
+let isAdmin = false;
 const usernameCache = new Map();
 
 const DEFAULT_SETTINGS = {
@@ -201,6 +203,245 @@ async function logout() {
   await supabase.auth.signOut();
 }
 
+
+async function checkAdminStatus() {
+  if (!me || !supabase) {
+    isAdmin = false;
+    $("adminNavBtn").classList.add("hidden");
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", me.id)
+    .maybeSingle();
+
+  isAdmin = !error && !!data;
+  $("adminNavBtn").classList.toggle("hidden", !isAdmin);
+
+  if (!isAdmin && activeTab === "admin") {
+    activeTab = "home";
+  }
+  return isAdmin;
+}
+
+function requireAdmin() {
+  if (!isAdmin) {
+    showToast("Admin access required.");
+    return false;
+  }
+  return true;
+}
+
+async function loadAdminConsole() {
+  if (!requireAdmin()) return;
+
+  const [
+    usersResult,
+    messagesCountResult,
+    groupsResult,
+    adminsResult
+  ] = await Promise.all([
+    supabase.from("profiles").select("id,username,created_at").order("created_at", { ascending: false }).limit(200),
+    supabase.from("global_messages").select("id", { count: "exact", head: true }),
+    supabase.from("groups").select("id,name,owner_id,created_at").order("created_at", { ascending: false }).limit(200),
+    supabase.from("admin_users").select("user_id", { count: "exact" })
+  ]);
+
+  if (usersResult.error || groupsResult.error || adminsResult.error) {
+    showToast("Could not load all admin data.");
+  }
+
+  const users = usersResult.data || [];
+  const adminIds = new Set((adminsResult.data || []).map(x => x.user_id));
+  const groupsData = groupsResult.data || [];
+
+  $("adminUserCount").textContent = users.length;
+  $("adminGlobalMessageCount").textContent = messagesCountResult.count ?? "—";
+  $("adminGroupCount").textContent = groupsData.length;
+  $("adminAdminCount").textContent = adminsResult.count ?? adminIds.size;
+
+  renderAdminUsers(users, adminIds);
+  await renderAdminGroups(groupsData);
+  await loadAdminMessages();
+}
+
+function renderAdminUsers(users, adminIds = new Set()) {
+  const query = normalizeUsername($("adminUserSearch").value);
+  const filtered = query
+    ? users.filter(u => String(u.username).toLowerCase().includes(query))
+    : users;
+
+  const box = $("adminUsersList");
+  box.innerHTML = "";
+
+  if (!filtered.length) {
+    box.innerHTML = `<div class="muted-note">No matching users.</div>`;
+    return;
+  }
+
+  for (const user of filtered) {
+    usernameCache.set(user.id, user.username);
+
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const av = document.createElement("div");
+    av.className = "avatar";
+    av.textContent = initials(user.username);
+
+    const grow = document.createElement("div");
+    grow.className = "grow";
+
+    const name = document.createElement("strong");
+    name.textContent = user.username + (user.id === me.id ? " (you)" : "");
+
+    const meta = document.createElement("small");
+    const adminText = adminIds.has(user.id) ? " • Admin" : "";
+    meta.textContent = `Joined ${new Date(user.created_at).toLocaleDateString()}${adminText}`;
+
+    grow.append(name, meta);
+    row.append(av, grow);
+    box.appendChild(row);
+  }
+}
+
+async function renderAdminGroups(groupsData) {
+  const box = $("adminGroupsList");
+  box.innerHTML = "";
+
+  if (!groupsData.length) {
+    box.innerHTML = `<div class="muted-note">No friend groups yet.</div>`;
+    return;
+  }
+
+  for (const group of groupsData) {
+    const owner = await getUsername(group.owner_id);
+
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const av = document.createElement("div");
+    av.className = "avatar";
+    av.textContent = initials(group.name);
+
+    const grow = document.createElement("div");
+    grow.className = "grow";
+
+    const name = document.createElement("strong");
+    name.textContent = group.name;
+
+    const meta = document.createElement("small");
+    meta.textContent = `Owner: ${owner} • ${new Date(group.created_at).toLocaleDateString()}`;
+
+    grow.append(name, meta);
+
+    const remove = document.createElement("button");
+    remove.className = "tiny-btn danger";
+    remove.type = "button";
+    remove.textContent = "Delete group";
+    remove.addEventListener("click", () => adminDeleteGroup(group));
+
+    row.append(av, grow, remove);
+    box.appendChild(row);
+  }
+}
+
+async function loadAdminMessages() {
+  if (!requireAdmin()) return;
+
+  const { data, error } = await supabase
+    .from("global_messages")
+    .select("id,sender_id,body,created_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  const box = $("adminMessagesList");
+  box.innerHTML = "";
+
+  if (error) {
+    box.innerHTML = `<div class="muted-note">Could not load global messages.</div>`;
+    return;
+  }
+
+  if (!(data || []).length) {
+    box.innerHTML = `<div class="muted-note">No global messages yet.</div>`;
+    return;
+  }
+
+  for (const msg of data || []) {
+    const username = await getUsername(msg.sender_id);
+
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const av = document.createElement("div");
+    av.className = "avatar";
+    av.textContent = initials(username);
+
+    const grow = document.createElement("div");
+    grow.className = "grow";
+
+    const top = document.createElement("strong");
+    top.textContent = username;
+
+    const meta = document.createElement("small");
+    meta.textContent = new Date(msg.created_at).toLocaleString();
+
+    const body = document.createElement("div");
+    body.className = "admin-message-text";
+    body.textContent = msg.body;
+
+    grow.append(top, meta, body);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "tiny-btn danger";
+    remove.textContent = "Delete";
+    remove.addEventListener("click", () => adminDeleteGlobalMessage(msg.id));
+
+    row.append(av, grow, remove);
+    box.appendChild(row);
+  }
+}
+
+async function adminDeleteGlobalMessage(id) {
+  if (!requireAdmin()) return;
+  if (!confirm("Delete this global message?")) return;
+
+  const { error } = await supabase
+    .from("global_messages")
+    .delete()
+    .eq("id", id);
+
+  if (error) return showToast(error.message || "Could not delete message.");
+
+  showToast("Global message deleted.");
+  await Promise.all([loadAdminMessages(), loadGlobalMessages()]);
+}
+
+async function adminDeleteGroup(group) {
+  if (!requireAdmin()) return;
+  if (!confirm(`Delete the group "${group.name}" and all of its group messages?`)) return;
+
+  const { error } = await supabase
+    .from("groups")
+    .delete()
+    .eq("id", group.id);
+
+  if (error) return showToast(error.message || "Could not delete group.");
+
+  if (selectedGroup?.id === group.id) {
+    selectedGroup = null;
+    $("groupArea").classList.add("hidden");
+    $("groupEmptyState").classList.remove("hidden");
+  }
+
+  showToast("Group deleted.");
+  await Promise.all([loadAdminConsole(), loadGroups()]);
+}
+
 async function initializeUser(currentSession) {
   session = currentSession;
   me = currentSession.user;
@@ -211,6 +452,7 @@ async function initializeUser(currentSession) {
   }
   profile = p;
   usernameCache.set(me.id, profile.username);
+  await checkAdminStatus();
 
   const { data: s } = await supabase.from("user_settings").select("*").eq("user_id", me.id).maybeSingle();
   settings = { ...DEFAULT_SETTINGS, ...(s || {}) };
@@ -242,7 +484,8 @@ async function initializeUser(currentSession) {
 
 function showLoggedOut() {
   session = null; me = null; profile = null; settings = null; friends = []; groups = [];
-  selectedDmFriend = null; selectedGroup = null;
+  selectedDmFriend = null; selectedGroup = null; isAdmin = false;
+  $("adminNavBtn").classList.add("hidden");
   clearChannels();
   $("appScreen").classList.add("hidden");
   $("authScreen").classList.remove("hidden");
@@ -250,6 +493,10 @@ function showLoggedOut() {
 }
 
 async function switchTab(tab) {
+  if (tab === "admin" && !isAdmin) {
+    showToast("Admin access required.");
+    tab = "home";
+  }
   activeTab = tab;
   $$(".nav-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
   $$(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === `tab-${tab}`));
@@ -261,6 +508,7 @@ async function switchTab(tab) {
   if (tab === "friends") await Promise.all([loadFriends(), loadFriendRequests()]);
   if (tab === "dms") await loadDmFriends();
   if (tab === "groups") await Promise.all([loadGroups(), loadGroupInvites()]);
+  if (tab === "admin") await loadAdminConsole();
 }
 
 async function refreshHome() {
@@ -870,6 +1118,16 @@ $("resetAppearanceBtn").addEventListener("click", resetAppearance);
 ["themeSelect","backgroundSelect","fontFamilySelect","fontSizeRange","fontColorInput","accentColorInput"]
   .forEach(id => $(id).addEventListener("input", previewAppearance));
 
+
+$("refreshAdminBtn").addEventListener("click", loadAdminConsole);
+$("adminUserSearchBtn").addEventListener("click", loadAdminConsole);
+$("adminUserSearch").addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    loadAdminConsole();
+  }
+});
+
 /* BOOT */
 newCaptcha();
 applySettings(DEFAULT_SETTINGS);
@@ -878,7 +1136,7 @@ if (!configured) {
   $("setupBanner").classList.remove("hidden");
   $("setupMessage").textContent = "Open config.js and paste your Supabase Project URL + anon/public key.";
 } else {
-  supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+  supabase = createClient(CONFIG.SUPABASE_URL, PUBLIC_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   });
 
