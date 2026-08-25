@@ -24,6 +24,14 @@ let groups = [];
 let selectedGroup = null;
 let realtimeChannels = [];
 let isAdmin = false;
+let currentModeration = {
+  banned: false,
+  muted: false,
+  ban_until: null,
+  mute_until: null,
+  ban_reason: null,
+  mute_reason: null
+};
 const usernameCache = new Map();
 
 const DEFAULT_SETTINGS = {
@@ -262,12 +270,15 @@ async function loadAdminConsole() {
   $("adminGroupCount").textContent = groupsData.length;
   $("adminAdminCount").textContent = adminsResult.count ?? adminIds.size;
 
-  renderAdminUsers(users, adminIds);
-  await renderAdminGroups(groupsData);
-  await loadAdminMessages();
+  await renderAdminUsers(users, adminIds);
+  await Promise.all([
+    renderAdminGroups(groupsData),
+    loadAdminMessages(),
+    loadActivePunishments()
+  ]);
 }
 
-function renderAdminUsers(users, adminIds = new Set()) {
+async function renderAdminUsers(users, adminIds = new Set()) {
   const query = normalizeUsername($("adminUserSearch").value);
   const filtered = query
     ? users.filter(u => String(u.username).toLowerCase().includes(query))
@@ -281,8 +292,19 @@ function renderAdminUsers(users, adminIds = new Set()) {
     return;
   }
 
+  const ids = filtered.map(u => u.id);
+  const { data: modRows } = ids.length
+    ? await supabase
+        .from("moderation_status")
+        .select("user_id,banned,ban_until,ban_reason,muted,mute_until,mute_reason")
+        .in("user_id", ids)
+    : { data: [] };
+
+  const modMap = new Map((modRows || []).map(row => [row.user_id, row]));
+
   for (const user of filtered) {
     usernameCache.set(user.id, user.username);
+    const mod = modMap.get(user.id);
 
     const row = document.createElement("div");
     row.className = "admin-row";
@@ -302,7 +324,42 @@ function renderAdminUsers(users, adminIds = new Set()) {
     meta.textContent = `Joined ${new Date(user.created_at).toLocaleDateString()}${adminText}`;
 
     grow.append(name, meta);
+
+    if (mod && (
+      moderationIsActive(mod.muted, mod.mute_until) ||
+      moderationIsActive(mod.banned, mod.ban_until)
+    )) {
+      const tags = document.createElement("div");
+      tags.className = "punishment-tags";
+
+      if (moderationIsActive(mod.muted, mod.mute_until)) {
+        const t = document.createElement("span");
+        t.className = "punishment-tag muted";
+        t.textContent = "Muted";
+        tags.appendChild(t);
+      }
+
+      if (moderationIsActive(mod.banned, mod.ban_until)) {
+        const t = document.createElement("span");
+        t.className = "punishment-tag banned";
+        t.textContent = "Banned";
+        tags.appendChild(t);
+      }
+
+      grow.appendChild(tags);
+    }
+
     row.append(av, grow);
+
+    if (user.id !== me.id && !adminIds.has(user.id)) {
+      const moderate = document.createElement("button");
+      moderate.type = "button";
+      moderate.className = "tiny-btn primary";
+      moderate.textContent = "Moderate";
+      moderate.addEventListener("click", () => openModerationDialog(user));
+      row.appendChild(moderate);
+    }
+
     box.appendChild(row);
   }
 }
@@ -442,9 +499,272 @@ async function adminDeleteGroup(group) {
   await Promise.all([loadAdminConsole(), loadGroups()]);
 }
 
+
+function moderationIsActive(flag, until) {
+  if (!flag) return false;
+  if (!until) return true;
+  return new Date(until).getTime() > Date.now();
+}
+
+function readableUntil(until) {
+  if (!until) return "Permanent";
+  const d = new Date(until);
+  return d.toLocaleString();
+}
+
+async function fetchMyModerationStatus() {
+  if (!supabase || !me) return currentModeration;
+
+  const { data, error } = await supabase.rpc("get_my_moderation_status");
+  if (error) {
+    console.warn("Could not read moderation status:", error);
+    return currentModeration;
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  currentModeration = {
+    banned: !!row?.banned,
+    muted: !!row?.muted,
+    ban_until: row?.ban_until || null,
+    mute_until: row?.mute_until || null,
+    ban_reason: row?.ban_reason || null,
+    mute_reason: row?.mute_reason || null
+  };
+  return currentModeration;
+}
+
+function activeBan() {
+  return moderationIsActive(currentModeration.banned, currentModeration.ban_until);
+}
+
+function activeMute() {
+  return moderationIsActive(currentModeration.muted, currentModeration.mute_until);
+}
+
+async function enforceBanAtLogin() {
+  await fetchMyModerationStatus();
+  if (!activeBan()) return false;
+
+  const untilText = currentModeration.ban_until
+    ? ` until ${readableUntil(currentModeration.ban_until)}`
+    : " permanently";
+  const reasonText = currentModeration.ban_reason
+    ? ` Reason: ${currentModeration.ban_reason}`
+    : "";
+
+  await supabase.auth.signOut();
+  switchAuth("login");
+  setStatus("loginStatus", `This Schoool account is banned${untilText}.${reasonText}`, "error");
+  return true;
+}
+
+function ensureCanMessage() {
+  if (activeBan()) {
+    showToast("Your account is banned from Schoool.");
+    return false;
+  }
+  if (activeMute()) {
+    const until = currentModeration.mute_until
+      ? ` until ${readableUntil(currentModeration.mute_until)}`
+      : "";
+    const reason = currentModeration.mute_reason
+      ? ` Reason: ${currentModeration.mute_reason}`
+      : "";
+    showToast(`You are muted${until}.${reason}`);
+    return false;
+  }
+  return true;
+}
+
+function subscribeModeration() {
+  const ch = supabase.channel(`moderation-${me.id}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "moderation_status",
+        filter: `user_id=eq.${me.id}`
+      },
+      async () => {
+        const wasBanned = activeBan();
+        const wasMuted = activeMute();
+
+        await fetchMyModerationStatus();
+
+        if (!wasBanned && activeBan()) {
+          showToast("Your account has been banned.");
+          setTimeout(async () => {
+            await supabase.auth.signOut();
+            switchAuth("login");
+            setStatus(
+              "loginStatus",
+              `This Schoool account is banned${currentModeration.ban_until ? ` until ${readableUntil(currentModeration.ban_until)}` : " permanently"}.`,
+              "error"
+            );
+          }, 800);
+        } else if (!wasMuted && activeMute()) {
+          showToast(`You have been muted${currentModeration.mute_until ? ` until ${readableUntil(currentModeration.mute_until)}` : ""}.`);
+        } else if (wasMuted && !activeMute()) {
+          showToast("Your mute has been cleared.");
+        }
+      }
+    )
+    .subscribe();
+
+  addChannel(ch);
+}
+
+function moderationActionNeedsDuration(action) {
+  return action === "mute" || action === "ban";
+}
+
+function updateModerationDialogFields() {
+  const action = $("moderationAction").value;
+  const needs = moderationActionNeedsDuration(action);
+  $("moderationDurationWrap").classList.toggle("hidden", !needs);
+  $("moderationReasonWrap").classList.toggle("hidden", !needs);
+  $("moderationSubmitBtn").textContent = needs ? "Apply punishment" : "Clear";
+}
+
+function openModerationDialog(user) {
+  if (!requireAdmin()) return;
+  if (user.id === me.id) {
+    return showToast("You can't punish your own admin account from the console.");
+  }
+
+  $("moderationUserId").value = user.id;
+  $("moderationUsername").textContent = `@${user.username}`;
+  $("moderationAction").value = "mute";
+  $("moderationDuration").value = "60";
+  $("moderationReason").value = "";
+  setStatus("moderationStatus", "");
+  updateModerationDialogFields();
+  $("moderationDialog").showModal();
+}
+
+async function applyModeration(event) {
+  event.preventDefault();
+  if (!requireAdmin()) return;
+
+  const targetUser = $("moderationUserId").value;
+  const action = $("moderationAction").value;
+  const durationMinutes = Number($("moderationDuration").value || 0);
+  const reason = $("moderationReason").value.trim();
+
+  if (moderationActionNeedsDuration(action) && !reason) {
+    return setStatus("moderationStatus", "Give a reason for the punishment.", "error");
+  }
+
+  setStatus("moderationStatus", "Applying…");
+
+  const { error } = await supabase.rpc("admin_apply_moderation", {
+    target_user: targetUser,
+    moderation_action: action,
+    duration_minutes: durationMinutes,
+    moderation_reason: reason || null
+  });
+
+  if (error) {
+    return setStatus("moderationStatus", error.message || "Could not apply moderation.", "error");
+  }
+
+  $("moderationDialog").close();
+  showToast("Moderation updated.");
+  await loadAdminConsole();
+}
+
+async function loadActivePunishments() {
+  if (!requireAdmin()) return;
+
+  const { data, error } = await supabase
+    .from("moderation_status")
+    .select("user_id,banned,ban_until,ban_reason,muted,mute_until,mute_reason,updated_at")
+    .or("banned.eq.true,muted.eq.true")
+    .order("updated_at", { ascending: false });
+
+  const box = $("adminPunishmentsList");
+  box.innerHTML = "";
+
+  if (error) {
+    box.innerHTML = `<div class="muted-note">Could not load moderation status.</div>`;
+    return;
+  }
+
+  const activeRows = (data || []).filter(row =>
+    moderationIsActive(row.banned, row.ban_until) ||
+    moderationIsActive(row.muted, row.mute_until)
+  );
+
+  if (!activeRows.length) {
+    box.innerHTML = `<div class="muted-note">No active mutes or bans.</div>`;
+    return;
+  }
+
+  for (const rowData of activeRows) {
+    const username = await getUsername(rowData.user_id);
+
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const av = document.createElement("div");
+    av.className = "avatar";
+    av.textContent = initials(username);
+
+    const grow = document.createElement("div");
+    grow.className = "grow";
+
+    const name = document.createElement("strong");
+    name.textContent = username;
+
+    const tags = document.createElement("div");
+    tags.className = "punishment-tags";
+
+    if (moderationIsActive(rowData.muted, rowData.mute_until)) {
+      const tag = document.createElement("span");
+      tag.className = "punishment-tag muted";
+      tag.textContent = `Muted • ${rowData.mute_until ? readableUntil(rowData.mute_until) : "Permanent"}`;
+      tags.appendChild(tag);
+    }
+
+    if (moderationIsActive(rowData.banned, rowData.ban_until)) {
+      const tag = document.createElement("span");
+      tag.className = "punishment-tag banned";
+      tag.textContent = `Banned • ${rowData.ban_until ? readableUntil(rowData.ban_until) : "Permanent"}`;
+      tags.appendChild(tag);
+    }
+
+    const reason = document.createElement("small");
+    const reasons = [];
+    if (moderationIsActive(rowData.muted, rowData.mute_until) && rowData.mute_reason) reasons.push(`Mute: ${rowData.mute_reason}`);
+    if (moderationIsActive(rowData.banned, rowData.ban_until) && rowData.ban_reason) reasons.push(`Ban: ${rowData.ban_reason}`);
+    reason.textContent = reasons.join(" • ") || "No reason";
+
+    grow.append(name, tags, reason);
+
+    const actions = document.createElement("div");
+    actions.className = "moderation-actions";
+
+    const manage = document.createElement("button");
+    manage.type = "button";
+    manage.className = "tiny-btn primary";
+    manage.textContent = "Manage";
+    manage.addEventListener("click", () => openModerationDialog({ id: rowData.user_id, username }));
+
+    actions.appendChild(manage);
+    row.append(av, grow, actions);
+    box.appendChild(row);
+  }
+}
+
 async function initializeUser(currentSession) {
   session = currentSession;
   me = currentSession.user;
+
+  if (await enforceBanAtLogin()) {
+    return;
+  }
+
   const { data: p, error: pError } = await supabase.from("profiles").select("*").eq("id", me.id).single();
   if (pError) {
     showToast("Could not load your Schoool profile.");
@@ -469,6 +789,7 @@ async function initializeUser(currentSession) {
   $("appScreen").classList.remove("hidden");
 
   clearChannels();
+  subscribeModeration();
   await Promise.all([
     loadFriends(),
     loadFriendRequests(),
@@ -485,6 +806,11 @@ async function initializeUser(currentSession) {
 function showLoggedOut() {
   session = null; me = null; profile = null; settings = null; friends = []; groups = [];
   selectedDmFriend = null; selectedGroup = null; isAdmin = false;
+  currentModeration = {
+    banned: false, muted: false,
+    ban_until: null, mute_until: null,
+    ban_reason: null, mute_reason: null
+  };
   $("adminNavBtn").classList.add("hidden");
   clearChannels();
   $("appScreen").classList.add("hidden");
@@ -540,6 +866,8 @@ async function loadGlobalMessages() {
 }
 async function sendGlobal(event) {
   event.preventDefault();
+  await fetchMyModerationStatus();
+  if (!ensureCanMessage()) return;
   const input = $("globalMessageInput");
   const body = input.value.trim();
   if (!body) return;
@@ -751,6 +1079,8 @@ async function loadDmMessages() {
 async function sendDm(event) {
   event.preventDefault();
   if (!selectedDmFriend) return;
+  await fetchMyModerationStatus();
+  if (!ensureCanMessage()) return;
   const input = $("dmMessageInput"), body = input.value.trim();
   if (!body) return;
   input.value = "";
@@ -883,6 +1213,8 @@ async function loadGroupMessages() {
 async function sendGroupMessage(event) {
   event.preventDefault();
   if (!selectedGroup) return;
+  await fetchMyModerationStatus();
+  if (!ensureCanMessage()) return;
   const input = $("groupMessageInput"), body = input.value.trim();
   if (!body) return;
   input.value = "";
@@ -1120,6 +1452,12 @@ $("resetAppearanceBtn").addEventListener("click", resetAppearance);
 
 
 $("refreshAdminBtn").addEventListener("click", loadAdminConsole);
+$("refreshPunishmentsBtn").addEventListener("click", loadActivePunishments);
+$("moderationAction").addEventListener("change", updateModerationDialogFields);
+$("moderationForm").addEventListener("submit", applyModeration);
+$$(".moderation-close").forEach(btn =>
+  btn.addEventListener("click", () => $("moderationDialog").close())
+);
 $("adminUserSearchBtn").addEventListener("click", loadAdminConsole);
 $("adminUserSearch").addEventListener("keydown", event => {
   if (event.key === "Enter") {
