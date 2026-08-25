@@ -225,3 +225,45 @@ dialog{border:1px solid var(--border);border-radius:18px;background:var(--panel)
 @media(max-width:540px){
   .admin-stats{grid-template-columns:1fr}
 }
+
+
+.punishment-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+  margin-top:5px;
+}
+.punishment-tag{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  border-radius:999px;
+  padding:3px 7px;
+  font-size:.67rem;
+  font-weight:800;
+  border:1px solid var(--border);
+}
+.punishment-tag.muted{
+  color:#9a5b00;
+  background:#fff5d6;
+  border-color:#f0d58b;
+}
+.punishment-tag.banned{
+  color:#a51d16;
+  background:#ffe3e0;
+  border-color:#f4aaa3;
+}
+body[data-theme="dark"] .punishment-tag.muted,
+body[data-background="midnight"] .punishment-tag.muted{
+  color:#ffd77a;background:#3c3013;border-color:#68551e
+}
+body[data-theme="dark"] .punishment-tag.banned,
+body[data-background="midnight"] .punishment-tag.banned{
+  color:#ffaaa2;background:#3b1718;border-color:#692529
+}
+.moderation-actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
