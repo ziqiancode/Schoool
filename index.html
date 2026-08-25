@@ -94,6 +94,7 @@
         <button class="nav-btn" data-tab="friends" type="button"><span>♙</span>Friends <b id="friendRequestBadge" class="badge hidden">0</b></button>
         <button class="nav-btn" data-tab="dms" type="button"><span>✉</span>DMs</button>
         <button class="nav-btn" data-tab="groups" type="button"><span>♧</span>Friend Groups <b id="groupInviteBadge" class="badge hidden">0</b></button>
+        <button id="adminNavBtn" class="nav-btn hidden" data-tab="admin" type="button"><span>★</span>Admin Console</button>
         <button class="nav-btn" data-tab="settings" type="button"><span>⚙</span>Settings</button>
       </nav>
 
@@ -268,6 +269,86 @@
               </div>
             </div>
           </section>
+        </div>
+      </section>
+
+
+      <section id="tab-admin" class="tab-panel">
+        <div class="page-heading">
+          <div>
+            <span class="eyebrow">Restricted</span>
+            <h2>Admin Console</h2>
+            <p>Moderation and site overview. Only approved Schoool admins can access this.</p>
+          </div>
+          <button id="refreshAdminBtn" class="primary-btn" type="button">Refresh console</button>
+        </div>
+
+        <div class="admin-stats">
+          <div class="panel stat-card">
+            <span class="eyebrow">Users</span>
+            <strong id="adminUserCount">0</strong>
+            <small>registered accounts</small>
+          </div>
+          <div class="panel stat-card">
+            <span class="eyebrow">Global chat</span>
+            <strong id="adminGlobalMessageCount">0</strong>
+            <small>messages</small>
+          </div>
+          <div class="panel stat-card">
+            <span class="eyebrow">Groups</span>
+            <strong id="adminGroupCount">0</strong>
+            <small>friend groups</small>
+          </div>
+          <div class="panel stat-card">
+            <span class="eyebrow">Admins</span>
+            <strong id="adminAdminCount">0</strong>
+            <small>approved admins</small>
+          </div>
+        </div>
+
+        <div class="two-col admin-two-col">
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Accounts</span>
+                <h3>User directory</h3>
+              </div>
+            </div>
+            <div class="inline-form">
+              <input id="adminUserSearch" maxlength="24" placeholder="Filter by username…">
+              <button id="adminUserSearchBtn" class="secondary-btn" type="button">Search</button>
+            </div>
+            <div id="adminUsersList" class="admin-scroll-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Groups</span>
+                <h3>Group moderation</h3>
+              </div>
+            </div>
+            <div id="adminGroupsList" class="admin-scroll-list"></div>
+          </section>
+        </div>
+
+        <section class="panel admin-message-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">Moderation</span>
+              <h3>Recent global messages</h3>
+            </div>
+            <span class="muted-note">Admins can remove inappropriate global messages.</span>
+          </div>
+          <div id="adminMessagesList" class="admin-scroll-list tall"></div>
+        </section>
+
+        <div class="panel admin-warning">
+          <strong>Admin safety</strong>
+          <p>
+            Schoool admins cannot view anybody's password. Passwords stay inside Supabase Auth.
+            This console also intentionally does not contain your Supabase service-role/secret key.
+          </p>
         </div>
       </section>
 
