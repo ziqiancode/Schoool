@@ -154,3 +154,74 @@ dialog{border:1px solid var(--border);border-radius:18px;background:var(--panel)
 @media(max-width:540px){
   .dashboard-grid,.stats-row{grid-template-columns:1fr}.page-heading{align-items:flex-start;flex-direction:column}.message{max-width:90%}.inline-form,.message-form{grid-template-columns:1fr}.color-row{grid-template-columns:1fr}
 }
+
+
+/* Admin console */
+.admin-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:14px;
+}
+.stat-card{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.stat-card strong{
+  font-size:2rem;
+  letter-spacing:-.04em;
+}
+.stat-card small{color:var(--muted)}
+.admin-two-col{align-items:start}
+.admin-scroll-list{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  max-height:420px;
+  overflow:auto;
+  margin-top:12px;
+}
+.admin-scroll-list.tall{max-height:560px}
+.admin-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:1px solid var(--border);
+  background:var(--panel-2);
+  border-radius:12px;
+  padding:10px;
+}
+.admin-row .grow{flex:1;min-width:0}
+.admin-row strong,.admin-row span,.admin-row small{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.admin-row small{color:var(--muted)}
+.admin-meta{
+  font-size:.72rem;
+  color:var(--muted);
+}
+.admin-message-text{
+  margin-top:3px;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  line-height:1.35;
+}
+.admin-message-panel{margin-top:14px}
+.admin-warning{
+  margin-top:14px;
+  border-color:color-mix(in srgb,var(--accent) 35%,var(--border));
+}
+.admin-warning p{
+  margin:6px 0 0;
+  color:var(--muted);
+  line-height:1.45;
+}
+@media(max-width:1020px){
+  .admin-stats{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:540px){
+  .admin-stats{grid-template-columns:1fr}
+}
